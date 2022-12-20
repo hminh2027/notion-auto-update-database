@@ -1,7 +1,28 @@
-export const START_AM_SHIFT = 8;
-export const END_AM_SHIFT = 12;
-export const START_PM_SHIFT = 13;
-export const END_PM_SHIFT = 17.5;
+export const AM_SHIFT = {
+  START: {
+    HOUR: 8,
+    MIN: 0,
+  },
+  END: {
+    HOUR: 12,
+    MIN: 0,
+  },
+  // RANGE: this.END.HOUR - this.START.HOUR,
+};
+
+export const PM_SHIFT = {
+  START: {
+    HOUR: 13,
+    MIN: 30,
+  },
+  END: {
+    HOUR: 17,
+    MIN: 30,
+  },
+};
+
 export const REQUIRED_WORKING_HOURS = 8;
+
 export const BASE_COLUMN_NAME = "Deadline";
-export const TARGET_COLUMN_NAME = "Working Time";
+export const TARGET_COLUMN_NAME_1 = "Working Time (h)";
+export const TARGET_COLUMN_NAME_2 = "Working Time (m)";

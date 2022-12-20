@@ -1,11 +1,12 @@
 import { NotionApi } from "./api.js";
 import * as dotenv from "dotenv";
-import { extractColumnData, getWorkingTimeHours } from "./util.js";
-import { BASE_COLUMN_NAME, TARGET_COLUMN_NAME } from "./constant.js";
+import { extractColumnData, getWorkingTime } from "./util.js";
+import {
+  BASE_COLUMN_NAME,
+  TARGET_COLUMN_NAME_1,
+  TARGET_COLUMN_NAME_2,
+} from "./constant.js";
 dotenv.config();
-
-// Promise.allSettled(updateData(newData));
-// await updateDatabaseData(rawData[0]);
 
 const notion = new NotionApi(
   process.env.NOTION_API_KEY,
@@ -15,18 +16,24 @@ const notion = new NotionApi(
 const handleData = (data) => {
   return data.map((d) => {
     if (!d) return null;
-    return { id: d.id, workingHours: getWorkingTimeHours(d.start, d.end) };
+    const { hours, minutes } = getWorkingTime(d.start, d.end);
+    return { id: d.id, workingHours: hours, workingMinutes: minutes };
   });
 };
 
-const updateData = (data) => {
-  data.map((d) => {
+const updateData = async (data) => {
+  data.map(async (d) => {
     if (!d) return null;
-    notion.update(d.id, { [TARGET_COLUMN_NAME]: { number: d.workingHours } });
+    await notion.update(d.id, {
+      [TARGET_COLUMN_NAME_1]: { number: d.workingHours },
+    });
+    await notion.update(d.id, {
+      [TARGET_COLUMN_NAME_2]: { number: d.workingMinutes },
+    });
   });
 };
 
 const rawData = await notion.get();
 const extractedData = extractColumnData(rawData, BASE_COLUMN_NAME);
 const handledData = handleData(extractedData);
-updateData(handledData);
+await updateData(handledData);
