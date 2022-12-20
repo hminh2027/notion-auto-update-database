@@ -6,7 +6,13 @@ const notion = new Client({
 });
 
 const databaseId = "0b4aa99e-f5cf-4300-bbac-5221e061075a";
-
+const WORK_HOUR_RANGE = {
+  start: 8,
+  end: 17,
+  get range() {
+    return Math.abs(this.start - this.end);
+  },
+};
 const getDatabaseData = async () => {
   try {
     const response = await notion.databases.query({
@@ -19,28 +25,57 @@ const getDatabaseData = async () => {
 };
 
 const getDeadline = (rawData) => {
-  rawData.map((data) => {});
-  return;
+  return getColumnData(rawData, "Deadline");
 };
 
 const getColumnData = (rawData, columnName) => {
-  let result = [];
   return rawData.map((data) => {
-    result.push(getDatediff(data.properties[columnName].date));
+    const date = data.properties[columnName].date;
+    if (!date) return null;
+    const { start, end } = date;
+    return getWorkHours(start, end);
   });
-  console.log(result);
-  // return rawData
 };
 
-const getDatediff = (row) => {
-  const start = moment(row.start);
-  const end = moment(row.end);
-  return end.diff(start, "days");
+const getDateDiff = (start, end) => {
+  return moment(end).diff(moment(start), "days");
 };
+const getHourDiff = (start, end) => {
+  return moment(end).diff(moment(start), "hour");
+};
+const getWorkHours = (start, end) => {
+  const range = getDateDiff(start, end);
+  const firstDayStart = moment(start).set("hour", WORK_HOUR_RANGE.start);
+  const firstDayEnd = moment(start).set("hour", WORK_HOUR_RANGE.end);
+  const lastDayStart = moment(end).set("hour", WORK_HOUR_RANGE.start);
+  const lastDayEnd = moment(end).set("hour", WORK_HOUR_RANGE.end);
 
-const caculateHandler = (startDate, endDate) => {};
+  const startMoment = moment(start);
+  const endMoment = moment(end);
+
+  let firstDayWorkHour = 0;
+  let lastDayWorkHour = 0;
+  let totalWorkHour = 0;
+
+  if (startMoment.isAfter(firstDayStart)) {
+    firstDayWorkHour = getHourDiff(startMoment, firstDayEnd);
+  } else {
+    firstDayWorkHour = WORK_HOUR_RANGE.range;
+  }
+
+  if (endMoment.isBefore(lastDayEnd)) {
+    lastDayWorkHour = getHourDiff(lastDayStart, endMoment);
+  } else {
+    lastDayWorkHour = WORK_HOUR_RANGE.range;
+  }
+
+  totalWorkHour =
+    firstDayWorkHour + lastDayWorkHour + range * WORK_HOUR_RANGE.range;
+  return totalWorkHour;
+};
 
 // Main
-const res = await getDatabaseData();
-// const res2 = getColumnData(res, "Deadline");
-console.log(res);
+const rawData = await getDatabaseData();
+const result = getDeadline(rawData);
+
+console.log(result);
