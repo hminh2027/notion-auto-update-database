@@ -1,19 +1,34 @@
 import { Client } from "@notionhq/client";
 import moment from "moment";
-import axios from "axios";
 
 const notion = new Client({
   auth: "secret_ug7qoOq4krLqHeNdyqM1Iiuma6dfy4EJJqL0KMSzX50",
 });
 
 const databaseId = "0b4aa99e-f5cf-4300-bbac-5221e061075a";
-const WORK_HOUR_RANGE = {
+const WORK_HOUR = {
+  morningStartHour: 8,
+  morningStartMinute: 0,
+  morningEndHour: 12,
+  morningEndMinute: 0,
+  afternoonStartHour: 13,
+  afternoonStartMinute: 30,
+  afternoonEndHour: 17,
+  afternoonEndMinute: 30,
   start: 8,
   end: 17,
-  get range() {
-    return Math.abs(this.start - this.end);
+  get fullMorningMinute() {
+    return 240;
+  },
+  get fullAfternoonMinute() {
+    return 240;
+  },
+  get fullDayMinute() {
+    return 480;
   },
 };
+const BASE_COLUMN = "Date";
+const TARGET_COLUMN = "Over Time";
 const getDatabaseData = async () => {
   try {
     const response = await notion.databases.query({
@@ -32,55 +47,70 @@ const updateDatabaseData = async ({ id, properties }) => {
     console.log(e);
   }
 };
-const getDeadline = (rawData) => {
-  return getColumnData(rawData, "Deadline");
-};
 
 const getColumnData = (rawData, columnName) => {
   return rawData.map((data) => {
     const date = data.properties[columnName].date;
     if (!date) return null;
     const { start, end } = date;
-    return getWorkHours(start, end);
+    return convertMinuteToHour(getWorkMinutes(start, end));
   });
 };
 
 const getDateDiff = (start, end) => {
   return moment(end).diff(moment(start), "days");
 };
-const getHourDiff = (start, end) => {
-  return moment(end).diff(moment(start), "hour");
+const getMorningWorkMinutes = (date, isLastDay) => {
+  const START = moment(date)
+    .set("hour", WORK_HOUR.morningStartHour)
+    .set("minute", WORK_HOUR.morningStartMinute);
+  const END = moment(date)
+    .set("hour", WORK_HOUR.morningEndHour)
+    .set("minute", WORK_HOUR.morningEndMinute);
+  if (isLastDay && date.isBefore(START)) return 0;
+
+  if (date.isBetween(START, END, "[]"))
+    return Math.abs(date.diff(END, "minute"));
+  if (date.isBefore(START)) return WORK_HOUR.fullMorningMinute;
+  return 0;
 };
-const getWorkHours = (start, end) => {
-  const range = getDateDiff(start, end);
-  const firstDayStart = moment(start).set("hour", WORK_HOUR_RANGE.start);
-  const firstDayEnd = moment(start).set("hour", WORK_HOUR_RANGE.end);
-  const lastDayStart = moment(end).set("hour", WORK_HOUR_RANGE.start);
-  const lastDayEnd = moment(end).set("hour", WORK_HOUR_RANGE.end);
 
-  const startMoment = moment(start);
-  const endMoment = moment(end);
-
-  let firstDayWorkHour = 0;
-  let lastDayWorkHour = 0;
-  let totalWorkHour = 0;
-
-  if (startMoment.isAfter(firstDayStart)) {
-    firstDayWorkHour = getHourDiff(startMoment, firstDayEnd);
-  } else {
-    firstDayWorkHour = WORK_HOUR_RANGE.range;
-  }
-
-  if (endMoment.isBefore(lastDayEnd)) {
-    lastDayWorkHour = getHourDiff(lastDayStart, endMoment);
-  } else {
-    lastDayWorkHour = WORK_HOUR_RANGE.range;
-  }
-
-  totalWorkHour =
-    firstDayWorkHour + lastDayWorkHour + range * WORK_HOUR_RANGE.range;
-  return totalWorkHour;
+const getAfternoonWorkMinutes = (date, isLastDay) => {
+  const START = moment(date)
+    .set("hour", WORK_HOUR.afternoonStartHour)
+    .set("minute", WORK_HOUR.afternoonStartMinute);
+  const END = moment(date)
+    .set("hour", WORK_HOUR.afternoonEndHour)
+    .set("minute", WORK_HOUR.afternoonEndMinute);
+  if (isLastDay && date.isBefore(START)) return 0;
+  if (date.isBetween(START, END, "[]"))
+    return Math.abs(date.diff(START, "minute"));
+  if (date.isBefore(START)) return WORK_HOUR.fullAfternoonMinute;
+  return 0;
 };
+
+const getMinutes = (date, isLastDay) => {
+  const _date = moment(date);
+  const morningMinutes = getMorningWorkMinutes(_date, isLastDay);
+  const afternoonMinutes = getAfternoonWorkMinutes(_date, isLastDay);
+  return morningMinutes + afternoonMinutes;
+};
+
+const getWorkMinutes = (startDate, endDate) => {
+  const range = getDateDiff(startDate, endDate);
+  const _startDate = moment(startDate);
+  const _endDate = moment(endDate);
+
+  if (_startDate.isSame(_endDate)) return 0;
+  if (_startDate.date === _endDate.date) return getMinutes(_endDate, true);
+
+  const startDateMinutes = getMinutes(_startDate);
+  const lastDateMinutes = getMinutes(_endDate, true);
+  const middleDateMinutes = range >= 1 ? range * WORK_HOUR.fullDayMinute : 0;
+
+  return startDateMinutes + lastDateMinutes + middleDateMinutes;
+};
+
 const reAssignData = (rawData, columnName, newData) => {
   return rawData.map((data, index) => {
     const {
@@ -96,17 +126,26 @@ const reAssignData = (rawData, columnName, newData) => {
         ...data.properties,
         [columnName]: {
           ...data.properties[columnName],
-          number: workHours[index],
+          rich_text: [
+            {
+              ...data.properties[columnName].rich_text[0],
+              text: { content: newData[index] },
+            },
+          ],
         },
       },
     };
   });
 };
+const convertMinuteToHour = (minutes) => {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  return `${hour >= 1 ? hour : "00"}:${minute > 10 ? minute : `0${minute}`}`;
+};
 // Main
 const rawData = await getDatabaseData();
-const workHours = getDeadline(rawData);
-
-const newData = reAssignData(rawData, "Working Time", workHours);
+const workHours = getColumnData(rawData, BASE_COLUMN);
+const newData = reAssignData(rawData, TARGET_COLUMN, workHours);
 
 const updateData = (newData) => {
   return newData.map(async (data) => {
@@ -114,6 +153,7 @@ const updateData = (newData) => {
     return updateDatabaseData({ id, properties });
   });
 };
-Promise.allSettled(updateData(newData));
+
+Promise.allSettled(updateData(newData)).then(console.log("Done"));
 
 // await updateDatabaseData(rawData[0]);
