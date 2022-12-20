@@ -91,10 +91,10 @@ const getWorkingTimeHours = (start, end) => {
   // const lastDayEnd = moment(end).set("hour", END_PM_SHIFT);
 
   firstDayWorkingHour = Math.abs(
-    getHourDiff(start, moment(start).set("hours", START_AM_SHIFT))
+    getHourDiff(start, moment(start).set("hours", END_PM_SHIFT))
   );
   lastDayWorkingHour = Math.abs(
-    getHourDiff(end, moment(end).set("hours", END_PM_SHIFT))
+    getHourDiff(end, moment(end).set("hours", START_AM_SHIFT))
   );
 
   console.log(firstDayWorkingHour, lastDayWorkingHour);
