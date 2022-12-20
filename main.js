@@ -1,5 +1,6 @@
 import { Client } from "@notionhq/client";
 import moment from "moment";
+import axios from "axios";
 
 const notion = new Client({
   auth: "secret_ug7qoOq4krLqHeNdyqM1Iiuma6dfy4EJJqL0KMSzX50",
@@ -23,7 +24,14 @@ const getDatabaseData = async () => {
     console.log(e);
   }
 };
-
+const updateDatabaseData = async ({ id, properties }) => {
+  try {
+    const response = await notion.pages.update({ page_id: id, properties });
+    return response;
+  } catch (e) {
+    console.log(e);
+  }
+};
 const getDeadline = (rawData) => {
   return getColumnData(rawData, "Deadline");
 };
@@ -73,9 +81,39 @@ const getWorkHours = (start, end) => {
     firstDayWorkHour + lastDayWorkHour + range * WORK_HOUR_RANGE.range;
   return totalWorkHour;
 };
-
+const reAssignData = (rawData, columnName, newData) => {
+  return rawData.map((data, index) => {
+    const {
+      created_time,
+      last_edited_time,
+      created_by,
+      last_edited_by,
+      ...datas
+    } = data;
+    return {
+      ...datas,
+      properties: {
+        ...data.properties,
+        [columnName]: {
+          ...data.properties[columnName],
+          number: workHours[index],
+        },
+      },
+    };
+  });
+};
 // Main
 const rawData = await getDatabaseData();
-const result = getDeadline(rawData);
+const workHours = getDeadline(rawData);
 
-console.log(result);
+const newData = reAssignData(rawData, "Working Time", workHours);
+
+const updateData = (newData) => {
+  return newData.map(async (data) => {
+    const { id, properties } = data;
+    return updateDatabaseData({ id, properties });
+  });
+};
+Promise.allSettled(updateData(newData));
+
+// await updateDatabaseData(rawData[0]);
