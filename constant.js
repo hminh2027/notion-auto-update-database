@@ -23,6 +23,7 @@ export const PM_SHIFT = {
 
 export const REQUIRED_WORKING_HOURS = 8;
 
-export const BASE_COLUMN_NAME = "Deadline";
+export const BASE_COLUMN_NAME = "Due";
 export const TARGET_COLUMN_NAME_1 = "Working Time (h)";
 export const TARGET_COLUMN_NAME_2 = "Working Time (m)";
+export const INTERVAL_TIME = 6;

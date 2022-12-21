@@ -18,6 +18,10 @@ export const getMinutesDiff = (start, end) => {
   return moment(end).diff(moment(start), "minutes");
 };
 
+export const removeTimezone = (time) => {
+  return time.slice(0, 23);
+};
+
 // export const checkAMShiftBoundary = (time) => {
 //   if (time < AM_SHIFT.START.HOUR) return 0;
 //   if (time >= AM_SHIFT.END.HOUR || time < PM_SHIFT.START.HOUR) return AM_SHIFT.RANGE;
@@ -34,32 +38,66 @@ export const getWorkingTime = (start, end) => {
   let lastDayWorkingHour = 0;
   let totalWorkingHours = 0;
 
-  const midrangeWorkingDays = Math.floor(getHoursDiff(start, end) / 24) - 1;
+  if (!start || !end) return convertMinutesToHoursAndMinutes(0);
 
-  if (moment(start).date === moment(end).date)
-    return convertMinutesToHoursAndMinutes(getMinutesDiff(start, end));
+  let startWithoutTZ = removeTimezone(start);
+  let endWithoutTZ = removeTimezone(end);
+
+  const midrangeWorkingDays =
+    Math.floor(getHoursDiff(startWithoutTZ, endWithoutTZ) / 24) - 1;
+
+  if (moment(startWithoutTZ).date() === moment(endWithoutTZ).date())
+    return convertMinutesToHoursAndMinutes(
+      getMinutesDiff(startWithoutTZ, endWithoutTZ)
+    );
 
   // refactor these
-  if (moment(end).hour() < AM_SHIFT.START.HOUR)
+  if (
+    moment(startWithoutTZ).isBefore(
+      moment(startWithoutTZ)
+        .set("hours", AM_SHIFT.START.HOUR)
+        .set("minutes", AM_SHIFT.START.MIN)
+    )
+  )
     firstDayWorkingHour = REQUIRED_WORKING_HOURS * 60;
-  else if (moment(end).hour() >= PM_SHIFT.END.HOUR) firstDayWorkingHour = 0;
+  else if (
+    moment(startWithoutTZ).isAfter(
+      moment(startWithoutTZ)
+        .set("hours", PM_SHIFT.END.HOUR)
+        .set("minutes", PM_SHIFT.END.MIN)
+    )
+  )
+    firstDayWorkingHour = 0;
   else
     firstDayWorkingHour = getMinutesDiff(
-      start,
-      moment(start)
+      startWithoutTZ,
+      moment(startWithoutTZ)
         .set("hours", PM_SHIFT.END.HOUR)
         .set("minutes", PM_SHIFT.END.MIN)
     );
 
-  if (moment(end).hour() < AM_SHIFT.START.HOUR) lastDayWorkingHour = 0;
-  else if (moment(end).hour() >= PM_SHIFT.END.HOUR)
+  if (
+    moment(endWithoutTZ).isBefore(
+      moment(endWithoutTZ)
+        .set("hours", AM_SHIFT.START.HOUR)
+        .set("minutes", AM_SHIFT.START.MIN)
+    )
+  )
+    lastDayWorkingHour = 0;
+  else if (
+    moment(endWithoutTZ).isAfter(
+      moment(endWithoutTZ)
+        .set("hours", PM_SHIFT.END.HOUR)
+        .set("minutes", PM_SHIFT.END.MIN)
+    )
+  )
     lastDayWorkingHour = REQUIRED_WORKING_HOURS * 60;
   else
     lastDayWorkingHour = getMinutesDiff(
-      moment(end)
+      moment(endWithoutTZ)
         .set("hours", AM_SHIFT.START.HOUR)
         .set("minutes", AM_SHIFT.START.MIN),
-      end
+      endWithoutTZ
     );
 
   midrangeWorkingHours = midrangeWorkingDays * REQUIRED_WORKING_HOURS * 60;
@@ -67,6 +105,7 @@ export const getWorkingTime = (start, end) => {
   totalWorkingHours =
     firstDayWorkingHour + lastDayWorkingHour + midrangeWorkingHours;
 
+  // console.log(startWithoutTZ, endWithoutTZ, "hi");
   // console.log(firstDayWorkingHour, lastDayWorkingHour, midrangeWorkingHours);
 
   return convertMinutesToHoursAndMinutes(totalWorkingHours);
