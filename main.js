@@ -1,46 +1,21 @@
-import { Client } from "@notionhq/client";
-import moment from "moment";
+import { NotionApi } from "./api.js";
+import * as dotenv from "dotenv";
+import { extractColumnData } from "./util.js";
+import { BASE_COLUMN_NAME, INTERVAL_TIME } from "./constant.js";
 
-const notion = new Client({
-  auth: "secret_ug7qoOq4krLqHeNdyqM1Iiuma6dfy4EJJqL0KMSzX50",
-});
+import { DataHandler } from "./data_handler.js";
+dotenv.config();
 
-const databaseId = "0b4aa99e-f5cf-4300-bbac-5221e061075a";
+const notion = new NotionApi(
+  process.env.NOTION_API_KEY,
+  process.env.DATABASE_ID
+);
 
-const getDatabaseData = async () => {
-  try {
-    const response = await notion.databases.query({
-      database_id: databaseId,
-    });
-    return response.results;
-  } catch (e) {
-    console.log(e);
-  }
-};
+const dataHandler = new DataHandler(notion);
 
-const getDeadline = (rawData) => {
-  rawData.map((data) => {});
-  return;
-};
-
-const getColumnData = (rawData, columnName) => {
-  let result = [];
-  return rawData.map((data) => {
-    result.push(getDatediff(data.properties[columnName].date));
-  });
-  console.log(result);
-  // return rawData
-};
-
-const getDatediff = (row) => {
-  const start = moment(row.start);
-  const end = moment(row.end);
-  return end.diff(start, "days");
-};
-
-const caculateHandler = (startDate, endDate) => {};
-
-// Main
-const res = await getDatabaseData();
-// const res2 = getColumnData(res, "Deadline");
-console.log(res);
+// setInterval(async () => {
+const rawData = await notion.get();
+const extractedData = extractColumnData(rawData, BASE_COLUMN_NAME);
+const handledData = dataHandler.handleData(extractedData);
+await dataHandler.updateData(handledData);
+// }, INTERVAL_TIME * 1000);
